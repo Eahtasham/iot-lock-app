@@ -38,8 +38,18 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#ffffff"
+        }
       ]
     ],
+    "notification": {
+      "icon": "./assets/notification-icon.png"
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

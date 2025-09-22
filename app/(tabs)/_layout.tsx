@@ -69,13 +69,13 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         const { options } = descriptors[route.key];
         const isFocused = state.index === index;
         
-        const getIconName = (routeName: string): string | undefined => {
+        const getIconName = (routeName: string) => {
           if (routeName === 'home') {
-            return isFocused ? 'home' : 'home-outline';
+            return isFocused ? 'home' as const : 'home-outline' as const;
           } else if (routeName === 'memorize') {
-            return isFocused ? 'camera' : 'camera-outline';
+            return isFocused ? 'camera' as const : 'camera-outline' as const;
           } else if (routeName === 'profile') {
-            return isFocused ? 'person' : 'person-outline';
+            return isFocused ? 'person' as const : 'person-outline' as const;
           }
           // No icon for other routes (like index)
           return undefined;
