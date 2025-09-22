@@ -1,50 +1,108 @@
-# Welcome to your Expo app 👋
+# IoT Lock App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native app for managing smart door lock visitors with real-time photo capture and accept/reject functionality.
 
-## Get started
+## Features
 
-1. Install dependencies
+### 🏠 Home Tab
+- **Visitor History**: View all visitor requests with status indicators
+- **Real-time Requests**: Accept/reject modal appears when visitors arrive
+- **Status Tracking**: Green checkmark for accepted, red X for rejected visitors
+- **Pagination**: "See More" button to load additional entries (10 at a time)
 
+### 📸 Memorize Tab
+- **Photo Management**: Add multiple photos of people to memorize
+- **Horizontal Scroll**: Side-scrollable photo gallery
+- **Name Input**: Text field for entering person's name
+- **Memorize Button**: Save person to the system
+
+### 👤 Profile Tab
+- **Account Settings**: Change password, email settings
+- **App Information**: Version, about us, terms of service
+- **Security**: Privacy settings and logout functionality
+- **Support**: Help and support options
+
+### 🚪 Accept/Reject Modal
+- **Photo Gallery**: Horizontal scroll through webcam captures
+- **Material Design**: Modern UI with proper spacing and shadows
+- **Action Buttons**: Large accept (green) and reject (red) buttons
+- **Visitor Info**: Display visitor name and timestamp
+
+## Project Structure
+
+```
+app/
+├── (tabs)/
+│   ├── home.tsx          # Visitor history and real-time requests
+│   ├── memorize.tsx      # Photo management and person registration
+│   └── profile.tsx       # User settings and app information
+├── _layout.tsx           # Main navigation with bottom tabs
+└── globals.css           # Global styles
+
+components/
+├── AcceptRejectModal.tsx # Modal for visitor requests
+└── VisitorCard.tsx      # Individual visitor history card
+
+constants/
+└── theme.ts             # App theme configuration
+```
+
+## Key Components
+
+### AcceptRejectModal
+- Full-screen modal with photo carousel
+- Material design buttons with icons
+- Timestamp display
+- Responsive image sizing
+
+### VisitorCard
+- Circular profile image
+- Name and timestamp in grid layout
+- Status icon (green/red)
+- Clean card design with shadows
+
+### Navigation
+- Bottom tab navigation with icons
+- Home, Camera, and Profile tabs
+- Theme-aware styling
+
+## Technologies Used
+
+- **React Native** with Expo
+- **TypeScript** for type safety
+- **NativeWind** for styling (Tailwind CSS)
+- **React Navigation** for tab navigation
+- **Expo Image Picker** for photo selection
+- **React Native Paper** for Material Design components
+- **Ionicons** for consistent iconography
+
+## Getting Started
+
+1. Install dependencies:
    ```bash
    npm install
    ```
 
-2. Start the app
-
+2. Start the development server:
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+3. Open the app in:
+   - Expo Go app on your phone
+   - iOS Simulator
+   - Android Emulator
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Demo Features
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- **Auto Demo**: Modal appears 3 seconds after opening the home tab
+- **Manual Demo**: "Demo Request" button in home header
+- **Mock Data**: Pre-populated visitor history for testing
 
-## Get a fresh project
+## Future Enhancements
 
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- Real webcam integration
+- Push notifications for visitor requests
+- Face recognition for memorized people
+- Cloud storage for photos and data
+- Multi-language support
