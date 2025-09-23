@@ -2,10 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -18,9 +18,31 @@ interface Photo {
   uri: string;
 }
 
+// Mock API function
+const mockMemorizeAPI = async (name: string, photos: Photo[]): Promise<{ success: boolean; message: string }> => {
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  // Simulate random success/failure for demo purposes
+  const isSuccess = Math.random() > 0.1; // 90% success rate
+  
+  if (isSuccess) {
+    return {
+      success: true,
+      message: `Successfully memorized ${name} with ${photos.length} photo(s). Face recognition model updated.`
+    };
+  } else {
+    return {
+      success: false,
+      message: 'Failed to process photos. Please try again with clearer images.'
+    };
+  }
+};
+
 export default function MemorizeScreen() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [name, setName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -31,7 +53,6 @@ export default function MemorizeScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -46,57 +67,118 @@ export default function MemorizeScreen() {
     }
   };
 
-  const removePhoto = (id: string) => {
-    setPhotos(prev => prev.filter(photo => photo.id !== id));
-  };
-
-  const handleMemorize = () => {
-    if (photos.length === 0 || !name.trim()) {
-      Alert.alert('Error', 'Please add at least one photo and enter a name');
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Please grant camera permissions');
       return;
     }
 
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      const newPhoto: Photo = {
+        id: Date.now().toString(),
+        uri: result.assets[0].uri,
+      };
+      setPhotos(prev => [...prev, newPhoto]);
+    }
+  };
+
+  const showImageSourceOptions = () => {
     Alert.alert(
-      'Success',
-      `Face memorized for ${name} with ${photos.length} photo(s)`,
+      'Add Photo',
+      'Choose an option',
       [
         {
-          text: 'OK',
-          onPress: () => {
-            setPhotos([]);
-            setName('');
-          },
+          text: 'Camera',
+          onPress: takePhoto,
+        },
+        {
+          text: 'Photo Library',
+          onPress: pickImage,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
         },
       ]
     );
   };
 
+  const removePhoto = (id: string) => {
+    setPhotos(prev => prev.filter(photo => photo.id !== id));
+  };
+
+  const handleMemorize = async () => {
+    if (photos.length === 0 || !name.trim()) {
+      Alert.alert('Error', 'Please add at least one photo and enter a name');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const result = await mockMemorizeAPI(name.trim(), photos);
+      
+      if (result.success) {
+        Alert.alert(
+          'Success',
+          result.message,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setPhotos([]);
+                setName('');
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Error', result.message);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Network error. Please check your connection and try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Memorize Face</Text>
-        <Text style={styles.subtitle}>Add photos and name to memorize a person</Text>
+    <SafeAreaView className="flex-1 bg-gray-100">
+      <View className="p-5 bg-white border-b border-gray-200">
+        <Text className="text-2xl font-bold text-secondary mb-1">Memorize Face</Text>
+        <Text className="text-sm text-gray-500">Add photos and name to memorize a person</Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.photosSection}>
-          <Text style={styles.sectionTitle}>Photos</Text>
+      <ScrollView className="flex-1 p-5" showsVerticalScrollIndicator={false}>
+        <View className="mb-8">
+          <Text className="text-lg font-semibold text-secondary mb-4">Photos</Text>
           
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.photosContainer}
+            contentContainerStyle={{ paddingRight: 20 }}
           >
-            <TouchableOpacity style={styles.addPhotoButton} onPress={pickImage}>
-              <Ionicons name="camera" size={30} color="#007AFF" />
-              <Text style={styles.addPhotoText}>Add Photo</Text>
+            <TouchableOpacity 
+              className="w-30 h-30 bg-white rounded-xl border-2 border-primary p-4 border-dashed justify-center items-center mr-3" 
+              onPress={showImageSourceOptions}
+            >
+              <Ionicons name="camera" size={30} color="var(--primary)" />
+              <Text className="text-primary text-xs mt-2 font-medium">Add Photo</Text>
             </TouchableOpacity>
 
             {photos.map((photo) => (
-              <View key={photo.id} style={styles.photoContainer}>
-                <Image source={{ uri: photo.uri }} style={styles.photo} />
+              <View key={photo.id} className="relative mr-3">
+                <Image source={{ uri: photo.uri }} className="w-30 h-30 rounded-xl" />
                 <TouchableOpacity
-                  style={styles.removeButton}
+                  className="absolute -top-2 -right-2 bg-white rounded-xl"
                   onPress={() => removePhoto(photo.id)}
                 >
                   <Ionicons name="close-circle" size={24} color="#F44336" />
@@ -106,117 +188,33 @@ export default function MemorizeScreen() {
           </ScrollView>
         </View>
 
-        <View style={styles.nameSection}>
-          <Text style={styles.sectionTitle}>Name</Text>
+        <View className="mb-8">
+          <Text className="text-lg font-semibold text-secondary mb-4">Name</Text>
           <TextInput
-            style={styles.nameInput}
+            className="bg-white rounded-xl p-4 text-base border border-gray-200"
             placeholder="Enter person's name"
             value={name}
             onChangeText={setName}
             placeholderTextColor="#999"
+            editable={!isLoading}
           />
         </View>
 
-        <TouchableOpacity style={styles.memorizeButton} onPress={handleMemorize}>
-          <Text style={styles.memorizeButtonText}>Memorize</Text>
+        <TouchableOpacity 
+          className={`rounded-xl p-5 items-center mb-5 ${isLoading ? 'bg-gray-400' : 'bg-primary'}`}
+          onPress={handleMemorize}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <View className="flex-row items-center">
+              <ActivityIndicator color="white" size="small" />
+              <Text className="text-white text-lg font-semibold ml-2">Processing...</Text>
+            </View>
+          ) : (
+            <Text className="text-white text-lg font-semibold">Memorize</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    padding: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  photosSection: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 16,
-  },
-  photosContainer: {
-    paddingRight: 20,
-  },
-  addPhotoButton: {
-    width: 120,
-    height: 120,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#007AFF',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  addPhotoText: {
-    color: '#007AFF',
-    fontSize: 12,
-    marginTop: 8,
-    fontWeight: '500',
-  },
-  photoContainer: {
-    position: 'relative',
-    marginRight: 12,
-  },
-  photo: {
-    width: 120,
-    height: 120,
-    borderRadius: 12,
-  },
-  removeButton: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-  },
-  nameSection: {
-    marginBottom: 30,
-  },
-  nameInput: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  memorizeButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    padding: 18,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  memorizeButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-});

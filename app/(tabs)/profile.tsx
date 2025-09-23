@@ -1,14 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
+  Modal,
   ScrollView,
-  StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useUser } from '../../hooks/useUser'; // Adjust path as needed
 
 interface ProfileOption {
   id: string;
@@ -17,17 +20,84 @@ interface ProfileOption {
   onPress: () => void;
 }
 
+const API_BASE_URL = 'https://iot-lock-backend.onrender.com';
+
 export default function ProfileScreen() {
-  const handleChangePassword = () => {
-    Alert.alert('Change Password', 'Password change functionality');
+  const { user } = useUser();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!user || !user.access_token) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
+    if (!oldPassword.trim() || !newPassword.trim()) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      Alert.alert('Error', 'New password must be at least 6 characters long');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.access_token}`,
+        },
+        body: JSON.stringify({
+          old_password: oldPassword,
+          new_password: newPassword,
+        }),
+      });
+
+      if (response.ok) {
+        Alert.alert(
+          'Success', 
+          'Password changed successfully',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setModalVisible(false);
+                setOldPassword('');
+                setNewPassword('');
+              }
+            }
+          ]
+        );
+      } else {
+        const data = await response.json();
+        Alert.alert('Error', data.detail || 'Failed to change password');
+      }
+    } catch (error) {
+      Alert.alert('Network Error', 'Please check your internet connection and try again');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleChangeEmail = () => {
-    Alert.alert('Change Email', 'Email change functionality');
+  const handleChangePassword = () => {
+    setModalVisible(true);
   };
 
   const handleAboutUs = () => {
-    Alert.alert('About Us', 'Smart Door Security System v1.0.0');
+    Alert.alert(
+      'About Us', 
+      'Smart Door Security System\nVersion 1.0.0\n\nSecure your home with advanced IoT technology.',
+      [{ text: 'OK' }]
+    );
   };
 
   const profileOptions: ProfileOption[] = [
@@ -38,16 +108,10 @@ export default function ProfileScreen() {
       onPress: handleChangePassword,
     },
     {
-      id: '2',
-      title: 'Change Email',
-      icon: 'mail-outline',
-      onPress: handleChangeEmail,
-    },
-    {
       id: '3',
       title: 'Version',
       icon: 'information-circle-outline',
-      onPress: () => Alert.alert('Version', 'v1.0.0'),
+      onPress: () => Alert.alert('Version Information', 'Smart Door Security System\nVersion 1.0.0'),
     },
     {
       id: '4',
@@ -60,113 +124,166 @@ export default function ProfileScreen() {
   const renderProfileOption = (option: ProfileOption) => (
     <TouchableOpacity
       key={option.id}
-      style={styles.optionCard}
+      className="flex-row items-center justify-between px-6 py-5 border-b border-gray-50 active:bg-gray-50"
       onPress={option.onPress}
     >
-      <View style={styles.optionLeft}>
-        <Ionicons name={option.icon as any} size={24} color="#007AFF" />
-        <Text style={styles.optionTitle}>{option.title}</Text>
+      <View className="flex-row items-center flex-1">
+        <View className="w-10 h-10 rounded-full bg-blue-50 items-center justify-center mr-4">
+          <Ionicons name={option.icon as any} size={20} style={{ color: 'var(--primary)' }} />
+        </View>
+        <Text className="text-base font-medium" style={{ color: 'var(--secondary)' }}>
+          {option.title}
+        </Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color="#999" />
+      <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
     </TouchableOpacity>
   );
 
+  const closeModal = () => {
+    setModalVisible(false);
+    setOldPassword('');
+    setNewPassword('');
+    setShowOldPassword(false);
+    setShowNewPassword(false);
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
+    <SafeAreaView className="flex-1 bg-gray-50">
+      {/* Header */}
+      <View className="bg-white px-6 py-4 border-b border-gray-100">
+        <Text className="text-2xl font-bold" style={{ color: 'var(--secondary)' }}>
+          Profile
+        </Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.profileCard}>
-          <View style={styles.avatarContainer}>
-            <Ionicons name="person" size={40} color="#007AFF" />
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {/* User Info Card */}
+        <View className="mx-6 mt-6 mb-4">
+          <View className="bg-white rounded-2xl p-8 items-center shadow-sm border border-gray-100">
+            <View 
+              className="w-24 h-24 rounded-full items-center justify-center mb-4"
+              style={{ backgroundColor: 'var(--primary)' + '20' }}
+            >
+              <Ionicons name="person" size={48} style={{ color: 'var(--primary)' }} />
+            </View>
+            <Text className="text-xl font-bold mb-2" style={{ color: 'var(--secondary)' }}>
+              {user?.name || 'User Name'}
+            </Text>
+            <Text className="text-sm text-gray-500 mb-1">
+              {user?.email || 'user@example.com'}
+            </Text>
+            <View className="flex-row items-center mt-2 px-3 py-1 bg-green-50 rounded-full">
+              <View className="w-2 h-2 bg-green-400 rounded-full mr-2" />
+              <Text className="text-xs text-green-600 font-medium">Active</Text>
+            </View>
           </View>
-          <Text style={styles.userName}>User Name</Text>
-          <Text style={styles.userEmail}>user@example.com</Text>
         </View>
 
-        <View style={styles.optionsContainer}>
-          {profileOptions.map(renderProfileOption)}
+        {/* Profile Options */}
+        <View className="mx-6 mb-6">
+          <View className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+            {profileOptions.map(renderProfileOption)}
+          </View>
         </View>
       </ScrollView>
+
+      {/* Change Password Modal */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeModal}
+      >
+        <View className="flex-1 justify-center px-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View className="bg-white rounded-2xl p-6 shadow-lg">
+            {/* Modal Header */}
+            <View className="flex-row items-center justify-between mb-6">
+              <Text className="text-xl font-bold" style={{ color: 'var(--secondary)' }}>
+                Change Password
+              </Text>
+              <TouchableOpacity onPress={closeModal} className="p-1">
+                <Ionicons name="close" size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Old Password Input */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium mb-2" style={{ color: 'var(--secondary)' }}>
+                Current Password
+              </Text>
+              <View className="flex-row items-center border border-gray-200 rounded-xl px-4 py-3">
+                <TextInput
+                  secureTextEntry={!showOldPassword}
+                  value={oldPassword}
+                  onChangeText={setOldPassword}
+                  placeholder="Enter current password"
+                  className="flex-1 text-base"
+                  placeholderTextColor="#9CA3AF"
+                />
+                <TouchableOpacity onPress={() => setShowOldPassword(!showOldPassword)}>
+                  <Ionicons 
+                    name={showOldPassword ? "eye-off" : "eye"} 
+                    size={20} 
+                    color="#9CA3AF" 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            {/* New Password Input */}
+            <View className="mb-6">
+              <Text className="text-sm font-medium mb-2" style={{ color: 'var(--secondary)' }}>
+                New Password
+              </Text>
+              <View className="flex-row items-center border border-gray-200 rounded-xl px-4 py-3">
+                <TextInput
+                  secureTextEntry={!showNewPassword}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  placeholder="Enter new password (min 6 characters)"
+                  className="flex-1 text-base"
+                  placeholderTextColor="#9CA3AF"
+                />
+                <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)}>
+                  <Ionicons 
+                    name={showNewPassword ? "eye-off" : "eye"} 
+                    size={20} 
+                    color="#9CA3AF" 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            {/* Buttons */}
+            <TouchableOpacity
+              onPress={handleSubmit}
+              disabled={isLoading}
+              className={`p-4 rounded-xl mb-3 items-center justify-center ${
+                isLoading ? 'bg-gray-400' : 'bg-primary'
+              }`}
+              style={{ opacity: isLoading ? 0.7 : 1 }}
+            >
+              {isLoading ? (
+                <View className="flex-row items-center">
+                  <ActivityIndicator size="small" color="white" />
+                  <Text className="text-white font-semibold ml-2">Changing Password...</Text>
+                </View>
+              ) : (
+                <Text className="text-white font-semibold text-base">Change Password</Text>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              onPress={closeModal}
+              disabled={isLoading}
+              className="p-4 rounded-xl border border-gray-200"
+              style={{ opacity: isLoading ? 0.5 : 1 }}
+            >
+              <Text className="text-center text-gray-600 font-medium">Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    padding: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  profileCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 30,
-    alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#f0f8ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  userName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  userEmail: {
-    fontSize: 14,
-    color: '#666',
-  },
-  optionsContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  optionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  optionTitle: {
-    fontSize: 16,
-    color: '#333',
-    marginLeft: 16,
-    fontWeight: '500',
-  },
-});
