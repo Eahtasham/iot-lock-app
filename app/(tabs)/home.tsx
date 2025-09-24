@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AcceptRejectModal from '../../components/AcceptRejectModal';
 import { useUser } from '../../hooks/useUser';
 
-interface Visitor {
+interface Visit {
   id: string;
   name: string;
   photo: string;
@@ -37,7 +37,7 @@ interface PendingRequest {
 const API_BASE_URL = 'https://iot-lock-backend.onrender.com';
 
 export default function HomeScreen() {
-  const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [visitors, setVisitors] = useState<Visit[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(null);
@@ -75,10 +75,10 @@ export default function HomeScreen() {
       const data = await response.json();
 
       if (response.ok) {
-        // Transform API response to match our Visitor interface
-        const transformedData: Visitor[] = data.visits?.map((visit: any) => ({
+        // Transform API response to match our Visit interface
+        const transformedData: Visit[] = data.visits?.map((visit: any) => ({
           id: visit.id.toString(),
-          name: visit.visitor_name || 'Unknown Visitor',
+          name: visit.visitor_name || 'Unknown Visit',
           photo: visit.profile_image_url || visit.image_url || 'https://i.pravatar.cc/150?img=1',
           date: visit.timestamp ? new Date(visit.timestamp).toLocaleDateString() : new Date().toLocaleDateString(),
           time: visit.timestamp ? new Date(visit.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
@@ -197,7 +197,7 @@ export default function HomeScreen() {
     }
   }, [user]);
 
-  const openPendingModal = (visitor: Visitor) => {
+  const openPendingModal = (visitor: Visit) => {
     setPendingRequest({
       id: visitor.id,
       name: visitor.name,
@@ -219,7 +219,7 @@ export default function HomeScreen() {
     }
   };
 
-  const renderVisitorCard = ({ item }: { item: Visitor }) => {
+  const renderVisitorCard = ({ item }: { item: Visit }) => {
     const statusIcon = getStatusIcon(item.status);
     
     return (
