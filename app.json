@@ -42,13 +42,13 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/notification-icon.png",
+          "icon": "./assets/",
           "color": "#ffffff"
         }
       ]
     ],
     "notification": {
-      "icon": "./assets/notification-icon.png"
+      "icon": "./assets/images/images/android-icon-background.png"
     },
     "experiments": {
       "typedRoutes": true,

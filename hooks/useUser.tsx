@@ -22,7 +22,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // API Base URL - Replace with your backend URL
-const API_BASE_URL = 'http://192.168.29.108:8000'; // Change this to your actual backend URL (use your computer's IP for mobile testing)
+const API_BASE_URL = 'https://iot-lock-backend.onrender.com'; // Change this to your actual backend URL (use your computer's IP for mobile testing)
 
 // Auth Provider Component
 export function AuthProvider({ children }: { children: ReactNode }) {

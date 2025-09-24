@@ -1,14 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Image,
+  RefreshControl,
   Text,
   TouchableOpacity,
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AcceptRejectModal from '../../components/AcceptRejectModal';
+import { useUser } from '../../hooks/useUser';
 
 interface Visitor {
   id: string;
@@ -17,67 +21,185 @@ interface Visitor {
   date: string;
   time: string;
   status: 'accepted' | 'rejected' | 'pending';
+  visitor_id?: number;
+  owner_id?: number;
+  detected_label?: string;
+  image_url?: string;
 }
 
-const mockVisitors: Visitor[] = [
-  {
-    id: '1',
-    name: 'John Doe',
-    photo: 'https://i.pravatar.cc/150?img=1',
-    date: '2024-01-15',
-    time: '10:30 AM',
-    status: 'accepted'
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    photo: 'https://i.pravatar.cc/150?img=2',
-    date: '2024-01-15',
-    time: '2:45 PM',
-    status: 'rejected'
-  },
-  {
-    id: '3',
-    name: 'Alice Johnson',
-    photo: 'https://i.pravatar.cc/150?img=3',
-    date: '2024-01-16',
-    time: '9:15 AM',
-    status: 'pending'
-  },
-  {
-    id: '4',
-    name: 'Bob Wilson',
-    photo: 'https://i.pravatar.cc/150?img=4',
-    date: '2024-01-16',
-    time: '11:30 AM',
-    status: 'pending'
-  },
-  // Add more mock data...
-];
-
 interface PendingRequest {
+  id: string;
   name: string;
   photos: string[];
 }
 
+// API Base URL - should match your useUser.tsx
+const API_BASE_URL = 'https://iot-lock-backend.onrender.com';
+
 export default function HomeScreen() {
-  const [visitors, setVisitors] = useState(mockVisitors);
+  const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasMoreData, setHasMoreData] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  const { user } = useUser();
 
-  const handleAcceptReject = (visitorId: string, action: 'accepted' | 'rejected') => {
+  const fetchVisitors = async (page = 1, isRefresh = false) => {
+    if (!user?.id || !user?.access_token) {
+      setError('User not authenticated');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      if (isRefresh) {
+        setIsRefreshing(true);
+        setError(null);
+      } else if (page === 1) {
+        setIsLoading(true);
+        setError(null);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/visits/${user.id}?page=${page}&limit=10`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.access_token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Transform API response to match our Visitor interface
+        const transformedData: Visitor[] = data.visits?.map((visit: any) => ({
+          id: visit.id.toString(),
+          name: visit.visitor_name || 'Unknown Visitor',
+          photo: visit.profile_image_url || visit.image_url || 'https://i.pravatar.cc/150?img=1',
+          date: visit.timestamp ? new Date(visit.timestamp).toLocaleDateString() : new Date().toLocaleDateString(),
+          time: visit.timestamp ? new Date(visit.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+          status: visit.status === 'granted' || visit.status === 'approved' ? 'accepted' : 
+                  visit.status === 'rejected' || visit.status === 'denied' ? 'rejected' : 
+                  visit.status === 'pending' ? 'pending' : 'pending',
+          visitor_id: visit.visitor_id,
+          owner_id: visit.owner_id,
+          detected_label: visit.detected_label,
+          image_url: visit.image_url,
+        })) || [];
+
+        if (isRefresh || page === 1) {
+          setVisitors(transformedData);
+        } else {
+          setVisitors(prev => [...prev, ...transformedData]);
+        }
+
+        // Check if there's more data (assuming you have pagination info in response)
+        const totalVisits = data.total_visits || 0;
+        const currentVisitCount = isRefresh || page === 1 ? transformedData.length : visitors.length + transformedData.length;
+        setHasMoreData(currentVisitCount < totalVisits);
+      } else {
+        throw new Error(data.detail || data.message || 'Failed to fetch visitors');
+      }
+    } catch (error) {
+      console.error('Error fetching visitors:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch visitors');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleAcceptReject = async (visitorId: string, action: 'accepted' | 'rejected') => {
+    if (!user?.access_token) {
+      return;
+    }
+
+    try {
+      // Choose the correct API endpoint based on action
+      const endpoint = action === 'accepted' 
+        ? `${API_BASE_URL}/api/visits/approve/${visitorId}`
+        : `${API_BASE_URL}/api/visits/deny/${visitorId}`;
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.access_token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.status === 'success') {
+        // Update local state based on the response
+        const newStatus = data.visit.status === 'granted' || data.visit.status === 'approved' ? 'accepted' : 'rejected';
+        
+        setVisitors(prev => 
+          prev.map(visitor => 
+            visitor.id === visitorId 
+              ? { ...visitor, status: newStatus }
+              : visitor
+          )
+        );
+
+        // Clear any previous errors
+        setError(null);
+        
+        // Show success message
+        Alert.alert(
+          'Success', 
+          `Visitor ${action === 'accepted' ? 'approved' : 'denied'} successfully`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        throw new Error(data.message || data.detail || 'Failed to update status');
+      }
+    } catch (error) {
+      console.error('Error updating visitor status:', error);
+      setError(`Failed to ${action === 'accepted' ? 'approve' : 'deny'} visitor: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Handle status update from modal
+  const handleModalStatusUpdate = (visitorId: string, status: 'accepted' | 'rejected') => {
     setVisitors(prev => 
       prev.map(visitor => 
         visitor.id === visitorId 
-          ? { ...visitor, status: action }
+          ? { ...visitor, status: status }
           : visitor
       )
     );
+    // Clear any error when successful update from modal
+    setError(null);
   };
+
+  const onRefresh = useCallback(() => {
+    setCurrentPage(1);
+    setHasMoreData(true);
+    fetchVisitors(1, true);
+  }, [user]);
+
+  const loadMore = () => {
+    if (hasMoreData && !isLoading) {
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      fetchVisitors(nextPage);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchVisitors(1);
+    }
+  }, [user]);
 
   const openPendingModal = (visitor: Visitor) => {
     setPendingRequest({
+      id: visitor.id,
       name: visitor.name,
       photos: [visitor.photo]
     });
@@ -109,7 +231,8 @@ export default function HomeScreen() {
         <View className="relative">
           <Image 
             source={{ uri: item.photo }} 
-            className="w-14 h-14 rounded-full mr-4" 
+            className="w-14 h-14 rounded-full mr-4"
+            defaultSource={{ uri: 'https://i.pravatar.cc/150?img=1' }}
           />
           {item.status === 'pending' && (
             <View className="absolute -top-1 -right-1 w-4 h-4 bg-chart-3 rounded-full border-2 border-background" />
@@ -165,13 +288,15 @@ export default function HomeScreen() {
     );
   };
 
-  const loadMore = () => {
-    // Simulate loading more data
-    setCurrentPage(prev => prev + 1);
-  };
-
   const pendingVisitors = visitors.filter(v => v.status === 'pending');
-  const allVisitors = visitors.slice(0, currentPage * 10);
+
+  if (!user) {
+    return (
+      <SafeAreaView className="flex-1 bg-background justify-center items-center">
+        <Text className="text-muted-foreground">Please login to view visitors</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -206,44 +331,81 @@ export default function HomeScreen() {
           </Text>
         </View>
       )}
+
+      {error && (
+        <View className="bg-destructive/10 mx-5 mt-4 p-4 rounded-xl border border-destructive/20">
+          <Text className="text-destructive text-sm font-medium">
+            {error}
+          </Text>
+          <TouchableOpacity 
+            className="mt-2"
+            onPress={() => fetchVisitors(1, true)}
+          >
+            <Text className="text-destructive text-sm underline">
+              Tap to retry
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
       
       <FlatList
-        data={allVisitors}
+        data={visitors}
         renderItem={renderVisitorCard}
         keyExtractor={(item) => item.id}
         className="flex-1"
         contentContainerClassName="p-5 pb-24"
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            colors={['#3b82f6']}
+            tintColor="#3b82f6"
+          />
+        }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.1}
         ListFooterComponent={
-          visitors.length > currentPage * 10 ? (
+          isLoading && currentPage > 1 ? (
+            <View className="py-4">
+              <ActivityIndicator size="small" color="#3b82f6" />
+            </View>
+          ) : hasMoreData && visitors.length > 0 ? (
             <TouchableOpacity 
               className="bg-primary p-4 rounded-xl items-center mt-4 shadow-sm"
               onPress={loadMore}
             >
               <Text className="text-primary-foreground text-base font-semibold">
-                See More
+                Load More
               </Text>
             </TouchableOpacity>
-          ) : (
-            allVisitors.length > 0 ? (
-              <View className="items-center mt-8 pb-4">
-                <Text className="text-muted-foreground text-sm">
-                  You've reached the end
-                </Text>
-              </View>
-            ) : null
-          )
+          ) : visitors.length > 0 ? (
+            <View className="items-center mt-8 pb-4">
+              <Text className="text-muted-foreground text-sm">
+                You've reached the end
+              </Text>
+            </View>
+          ) : null
         }
         ListEmptyComponent={
-          <View className="items-center justify-center py-20">
-            <Ionicons name="people-outline" size={64} color="#e5e5e6" />
-            <Text className="text-muted-foreground text-lg font-medium mt-4">
-              No visitors yet
-            </Text>
-            <Text className="text-muted text-sm mt-1">
-              Visitor history will appear here
-            </Text>
-          </View>
+          isLoading ? (
+            <View className="items-center justify-center py-20">
+              <ActivityIndicator size="large" color="#3b82f6" />
+              <Text className="text-muted-foreground text-base mt-4">
+                Loading visitors...
+              </Text>
+            </View>
+          ) : (
+            <View className="items-center justify-center py-20">
+              <Ionicons name="people-outline" size={64} color="#e5e5e6" />
+              <Text className="text-muted-foreground text-lg font-medium mt-4">
+                No visitors yet
+              </Text>
+              <Text className="text-muted text-sm mt-1">
+                Visitor history will appear here
+              </Text>
+            </View>
+          )
         }
       />
 
@@ -251,6 +413,7 @@ export default function HomeScreen() {
         visible={showModal}
         onClose={() => setShowModal(false)}
         visitorData={pendingRequest}
+        onStatusUpdate={handleModalStatusUpdate}
       />
     </SafeAreaView>
   );

@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Dimensions,
   Image,
   Modal,
@@ -10,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useUser } from '../hooks/useUser';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -17,27 +20,28 @@ interface AcceptRejectModalProps {
   visible: boolean;
   onClose: () => void;
   visitorData: {
+    id?: string;
     name: string;
     photos: string[];
   } | null;
+  onStatusUpdate?: (visitorId: string, status: 'accepted' | 'rejected') => void;
 }
 
-const mockPhotos = [
-  'https://i.pravatar.cc/300?img=3',
-  'https://i.pravatar.cc/300?img=4',
-  'https://i.pravatar.cc/300?img=5',
-];
+const API_BASE_URL = 'https://iot-lock-backend.onrender.com';
 
 export default function AcceptRejectModal({ 
   visible, 
   onClose, 
-  visitorData 
+  visitorData,
+  onStatusUpdate
 }: AcceptRejectModalProps) {
   const [modalVisible, setModalVisible] = React.useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = React.useState(0);
+  const [isProcessing, setIsProcessing] = React.useState(false);
   const scrollViewRef = React.useRef<ScrollView>(null);
+  const { user } = useUser();
 
-  // Auto-trigger modal after 10 seconds
+  // Auto-trigger modal after 10 seconds (optional - you can remove this if not needed)
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setModalVisible(true);
@@ -46,7 +50,14 @@ export default function AcceptRejectModal({
     return () => clearTimeout(timer);
   }, []);
 
-  const photos = visitorData?.photos || mockPhotos;
+  // Reset photo index when visitorData changes
+  React.useEffect(() => {
+    setCurrentPhotoIndex(0);
+  }, [visitorData]);
+
+  const photos = visitorData?.photos && visitorData.photos.length > 0 
+    ? visitorData.photos 
+    : ['https://i.pravatar.cc/300?img=3']; // fallback photo
 
   const scrollToPhoto = (index: number) => {
     setCurrentPhotoIndex(index);
@@ -68,22 +79,82 @@ export default function AcceptRejectModal({
     }
   };
 
+  const handleApiCall = async (action: 'accept' | 'reject') => {
+    if (!visitorData?.id || !user?.access_token) {
+      Alert.alert('Error', 'Missing visitor ID or authentication token');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const endpoint = action === 'accept' 
+        ? `${API_BASE_URL}/api/visits/approve/${visitorData.id}`
+        : `${API_BASE_URL}/api/visits/deny/${visitorData.id}`;
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.access_token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.status === 'success') {
+        // Determine the status based on API response
+        const newStatus = data.visit.status === 'granted' || data.visit.status === 'approved' ? 'accepted' : 'rejected';
+        
+        // Call the callback to update parent component
+        if (onStatusUpdate) {
+          onStatusUpdate(visitorData.id, newStatus);
+        }
+
+        Alert.alert(
+          'Success', 
+          `Visitor ${action === 'accept' ? 'approved' : 'denied'} successfully`,
+          [{ 
+            text: 'OK', 
+            onPress: () => {
+              handleClose();
+            }
+          }]
+        );
+      } else {
+        throw new Error(data.message || data.detail || 'Failed to update status');
+      }
+    } catch (error) {
+      console.error(`Error ${action}ing visitor:`, error);
+      Alert.alert(
+        'Error', 
+        `Failed to ${action} visitor: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleAccept = () => {
-    console.log('Visitor accepted');
-    setModalVisible(false);
-    onClose();
+    handleApiCall('accept');
   };
 
   const handleReject = () => {
-    console.log('Visitor rejected');
-    setModalVisible(false);
-    onClose();
+    handleApiCall('reject');
   };
 
   const handleClose = () => {
     setModalVisible(false);
+    setCurrentPhotoIndex(0);
+    setIsProcessing(false);
     onClose();
   };
+
+  // Don't show modal if no visitor data
+  if (!visitorData) {
+    return null;
+  }
 
   return (
     <Modal
@@ -94,7 +165,11 @@ export default function AcceptRejectModal({
     >
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+          <TouchableOpacity 
+            onPress={handleClose} 
+            style={styles.closeButton}
+            disabled={isProcessing}
+          >
             <Ionicons name="close" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.title}>Visitor Request</Text>
@@ -102,24 +177,29 @@ export default function AcceptRejectModal({
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.subtitle}>Someone is at your door</Text>
+          <Text style={styles.subtitle}>
+            {visitorData.name} is at your door
+          </Text>
           
           <View style={styles.photosSection}>
             <View style={styles.photoSliderContainer}>
-              <TouchableOpacity 
-                style={[styles.arrowButton, styles.leftArrow, { opacity: currentPhotoIndex === 0 ? 0.3 : 1 }]}
-                onPress={handlePrevPhoto}
-                disabled={currentPhotoIndex === 0}
-              >
-                <Ionicons name="chevron-back" size={24} color="#fff" />
-              </TouchableOpacity>
+              {photos.length > 1 && (
+                <TouchableOpacity 
+                  style={[styles.arrowButton, styles.leftArrow, { opacity: currentPhotoIndex === 0 ? 0.3 : 1 }]}
+                  onPress={handlePrevPhoto}
+                  disabled={currentPhotoIndex === 0 || isProcessing}
+                >
+                  <Ionicons name="chevron-back" size={24} color="#fff" />
+                </TouchableOpacity>
+              )}
               
               <ScrollView
                 ref={scrollViewRef}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.photosContainer}
-                pagingEnabled
+                pagingEnabled={photos.length > 1}
+                scrollEnabled={photos.length > 1}
                 onMomentumScrollEnd={(event) => {
                   const index = Math.round(event.nativeEvent.contentOffset.x / screenWidth);
                   setCurrentPhotoIndex(index);
@@ -127,46 +207,72 @@ export default function AcceptRejectModal({
               >
                 {photos.map((photo, index) => (
                   <View key={index} style={styles.photoWrapper}>
-                    <Image source={{ uri: photo }} style={styles.photo} />
+                    <Image 
+                      source={{ uri: photo }} 
+                      style={styles.photo}
+                      defaultSource={{ uri: 'https://i.pravatar.cc/300?img=3' }}
+                    />
                   </View>
                 ))}
               </ScrollView>
               
-              <TouchableOpacity 
-                style={[styles.arrowButton, styles.rightArrow, { opacity: currentPhotoIndex === photos.length - 1 ? 0.3 : 1 }]}
-                onPress={handleNextPhoto}
-                disabled={currentPhotoIndex === photos.length - 1}
-              >
-                <Ionicons name="chevron-forward" size={24} color="#fff" />
-              </TouchableOpacity>
+              {photos.length > 1 && (
+                <TouchableOpacity 
+                  style={[styles.arrowButton, styles.rightArrow, { opacity: currentPhotoIndex === photos.length - 1 ? 0.3 : 1 }]}
+                  onPress={handleNextPhoto}
+                  disabled={currentPhotoIndex === photos.length - 1 || isProcessing}
+                >
+                  <Ionicons name="chevron-forward" size={24} color="#fff" />
+                </TouchableOpacity>
+              )}
             </View>
             
-            <View style={styles.photoIndicators}>
-              {photos.map((_, index) => (
-                <View 
-                  key={index} 
-                  style={[
-                    styles.indicator,
-                    { backgroundColor: index === currentPhotoIndex ? '#007AFF' : '#ccc' }
-                  ]} 
-                />
-              ))}
-            </View>
+            {photos.length > 1 && (
+              <View style={styles.photoIndicators}>
+                {photos.map((_, index) => (
+                  <View 
+                    key={index} 
+                    style={[
+                      styles.indicator,
+                      { backgroundColor: index === currentPhotoIndex ? '#007AFF' : '#ccc' }
+                    ]} 
+                  />
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={styles.buttonsContainer}>
             <TouchableOpacity
-              style={[styles.actionButton, styles.rejectButton]}
+              style={[
+                styles.actionButton, 
+                styles.rejectButton,
+                isProcessing && styles.disabledButton
+              ]}
               onPress={handleReject}
+              disabled={isProcessing}
             >
-              <Text style={styles.buttonText}>Reject</Text>
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Reject</Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, styles.acceptButton]}
+              style={[
+                styles.actionButton, 
+                styles.acceptButton,
+                isProcessing && styles.disabledButton
+              ]}
               onPress={handleAccept}
+              disabled={isProcessing}
             >
-              <Text style={styles.buttonText}>Accept</Text>
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Accept</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -214,6 +320,7 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginBottom: 30,
+    fontWeight: '500',
   },
   photosSection: {
     marginBottom: 40,
@@ -280,12 +387,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 52,
   },
   rejectButton: {
     backgroundColor: '#FF5252',
   },
   acceptButton: {
     backgroundColor: '#4CAF50',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   buttonText: {
     color: '#fff',
