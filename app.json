@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.eahtasham.iotlockapp"
     },
     "web": {
       "output": "static",
@@ -42,17 +43,23 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/",
           "color": "#ffffff"
         }
       ]
     ],
     "notification": {
-      "icon": "./assets/images/images/android-icon-background.png"
+      "icon": "./assets/images/favicon.png"
     },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "838280c3-b8ba-4243-b7d9-11265d49e223"
+      }
+    },
+    "owner": "eahtasham"
   }
 }

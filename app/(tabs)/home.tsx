@@ -1,3 +1,4 @@
+import NotificationTest from '@/components/NotificationTest';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -317,6 +318,7 @@ export default function HomeScreen() {
           Manage your visitor requests and history
         </Text>
       </View>
+      <NotificationTest />
       
       {pendingVisitors.length > 0 && (
         <View className="bg-accent mx-5 mt-4 p-4 rounded-xl border border-border">
