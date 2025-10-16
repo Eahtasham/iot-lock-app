@@ -17,7 +17,8 @@ import { useUser } from '../../hooks/useUser';
 interface Visitor {
   id: string;
   name: string;
-  photo: string;
+  photo: string; // first photo for card
+  photos: string[]; // all photos for modal
   date: string;
   time: string;
   status: 'accepted' | 'rejected' | 'pending';
@@ -33,7 +34,7 @@ interface PendingRequest {
   photos: string[];
 }
 
-// API Base URL - should match your useUser.tsx
+// API Base URL
 const API_BASE_URL = 'https://iot-lock-backend.onrender.com';
 
 export default function HomeScreen() {
@@ -75,21 +76,27 @@ export default function HomeScreen() {
       const data = await response.json();
 
       if (response.ok) {
-        // Transform API response to match our Visitor interface
-        const transformedData: Visitor[] = data.visits?.map((visit: any) => ({
-          id: visit.id.toString(),
-          name: visit.visitor_name || 'Unknown Visitor',
-          photo: visit.profile_image_url || visit.image_url || 'https://i.pravatar.cc/150?img=1',
-          date: visit.timestamp ? new Date(visit.timestamp).toLocaleDateString() : new Date().toLocaleDateString(),
-          time: visit.timestamp ? new Date(visit.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-          status: visit.status === 'granted' || visit.status === 'approved' ? 'accepted' : 
-                  visit.status === 'rejected' || visit.status === 'denied' ? 'rejected' : 
-                  visit.status === 'pending' ? 'pending' : 'pending',
-          visitor_id: visit.visitor_id,
-          owner_id: visit.owner_id,
-          detected_label: visit.detected_label,
-          image_url: visit.image_url,
-        })) || [];
+        const transformedData: Visitor[] = data.visits?.map((visit: any) => {
+          // Split concatenated URLs using =@#*#@=
+          const allPhotos = visit.profile_image_url
+            ? visit.profile_image_url.split('=@#*#@=')
+            : [visit.image_url || 'https://i.pravatar.cc/150?img=1'];
+
+          return {
+            id: visit.id.toString(),
+            name: visit.visitor_name || 'Unknown Visitor',
+            photo: allPhotos[0], // first image for card
+            photos: allPhotos, // all images for modal
+            date: visit.timestamp ? new Date(visit.timestamp).toLocaleDateString() : new Date().toLocaleDateString(),
+            time: visit.timestamp ? new Date(visit.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+            status: visit.status === 'granted' || visit.status === 'approved' ? 'accepted' : 
+                    visit.status === 'rejected' || visit.status === 'denied' ? 'rejected' : 'pending',
+            visitor_id: visit.visitor_id,
+            owner_id: visit.owner_id,
+            detected_label: visit.detected_label,
+            image_url: visit.image_url,
+          };
+        }) || [];
 
         if (isRefresh || page === 1) {
           setVisitors(transformedData);
@@ -97,7 +104,6 @@ export default function HomeScreen() {
           setVisitors(prev => [...prev, ...transformedData]);
         }
 
-        // Check if there's more data (assuming you have pagination info in response)
         const totalVisits = data.total_visits || 0;
         const currentVisitCount = isRefresh || page === 1 ? transformedData.length : visitors.length + transformedData.length;
         setHasMoreData(currentVisitCount < totalVisits);
@@ -114,12 +120,10 @@ export default function HomeScreen() {
   };
 
   const handleAcceptReject = async (visitorId: string, action: 'accepted' | 'rejected') => {
-    if (!user?.access_token) {
-      return;
-    }
-
+    if (!user?.access_token) return;
+  
     try {
-      // Choose the correct API endpoint based on action
+      // CLOUD API (KEEP AS IS)
       const endpoint = action === 'accepted' 
         ? `${API_BASE_URL}/api/visits/approve/${visitorId}`
         : `${API_BASE_URL}/api/visits/deny/${visitorId}`;
@@ -131,49 +135,32 @@ export default function HomeScreen() {
           'Authorization': `Bearer ${user.access_token}`,
         },
       });
-
+  
       const data = await response.json();
-
+  
       if (response.ok && data.status === 'success') {
-        // Update local state based on the response
         const newStatus = data.visit.status === 'granted' || data.visit.status === 'approved' ? 'accepted' : 'rejected';
+        setVisitors(prev => prev.map(visitor => visitor.id === visitorId ? { ...visitor, status: newStatus } : visitor));
         
-        setVisitors(prev => 
-          prev.map(visitor => 
-            visitor.id === visitorId 
-              ? { ...visitor, status: newStatus }
-              : visitor
-          )
-        );
-
-        // Clear any previous errors
-        setError(null);
+        // LAPTOP API - SEND 1 OR 0
+        const lockValue = action === 'accepted' ? 1 : 0;
+        console.log(`📱 Sending to laptop: ${lockValue}`);
         
-        // Show success message
-        Alert.alert(
-          'Success', 
-          `Visitor ${action === 'accepted' ? 'approved' : 'denied'} successfully`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        throw new Error(data.message || data.detail || 'Failed to update status');
+        await fetch(`https://iot-lock-api.onrender.com/lock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: lockValue })
+        });
+        
+        Alert.alert('Success', `Visitor ${action === 'accepted' ? 'approved' : 'denied'} successfully`);
       }
     } catch (error) {
-      console.error('Error updating visitor status:', error);
-      setError(`Failed to ${action === 'accepted' ? 'approve' : 'deny'} visitor: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error:', error);
     }
   };
 
-  // Handle status update from modal
   const handleModalStatusUpdate = (visitorId: string, status: 'accepted' | 'rejected') => {
-    setVisitors(prev => 
-      prev.map(visitor => 
-        visitor.id === visitorId 
-          ? { ...visitor, status: status }
-          : visitor
-      )
-    );
-    // Clear any error when successful update from modal
+    setVisitors(prev => prev.map(visitor => visitor.id === visitorId ? { ...visitor, status } : visitor));
     setError(null);
   };
 
@@ -201,7 +188,7 @@ export default function HomeScreen() {
     setPendingRequest({
       id: visitor.id,
       name: visitor.name,
-      photos: [visitor.photo]
+      photos: visitor.photos // pass all photos to modal
     });
     setShowModal(true);
   };
@@ -240,47 +227,29 @@ export default function HomeScreen() {
         </View>
         
         <View className="flex-1">
-          <Text className="text-base font-semibold text-card-foreground mb-1">
-            {item.name}
-          </Text>
+          <Text className="text-base font-semibold text-card-foreground mb-1">{item.name}</Text>
           <View className="flex-row justify-between">
-            <Text className="text-sm text-muted-foreground flex-1">
-              {item.date}
-            </Text>
-            <Text className="text-sm text-muted-foreground flex-1">
-              {item.time}
-            </Text>
+            <Text className="text-sm text-muted-foreground flex-1">{item.date}</Text>
+            <Text className="text-sm text-muted-foreground flex-1">{item.time}</Text>
           </View>
           {item.status === 'pending' && (
-            <Text className="text-xs text-chart-3 mt-1 font-medium">
-              Tap to review
-            </Text>
+            <Text className="text-xs text-chart-3 mt-1 font-medium">Tap to review</Text>
           )}
         </View>
         
         <View className="ml-4">
           {item.status === 'pending' ? (
             <View className="flex-row gap-2">
-              <TouchableOpacity
-                className="bg-chart-2 rounded-full p-2"
-                onPress={() => handleAcceptReject(item.id, 'accepted')}
-              >
+              <TouchableOpacity className="bg-chart-2 rounded-full p-2" onPress={() => handleAcceptReject(item.id, 'accepted')}>
                 <Ionicons name="checkmark" size={16} color="white" />
               </TouchableOpacity>
-              <TouchableOpacity
-                className="bg-destructive rounded-full p-2"
-                onPress={() => handleAcceptReject(item.id, 'rejected')}
-              >
+              <TouchableOpacity className="bg-destructive rounded-full p-2" onPress={() => handleAcceptReject(item.id, 'rejected')}>
                 <Ionicons name="close" size={16} color="white" />
               </TouchableOpacity>
             </View>
           ) : (
             <View className={`${statusIcon.color}`}>
-              <Ionicons
-                name={statusIcon.name}
-                size={24}
-                color={item.status === 'accepted' ? '#00b87a' : '#f4212e'}
-              />
+              <Ionicons name={statusIcon.name} size={24} color={item.status === 'accepted' ? '#00b87a' : '#f4212e'} />
             </View>
           )}
         </View>
@@ -302,20 +271,14 @@ export default function HomeScreen() {
     <SafeAreaView className="flex-1 bg-background">
       <View className="px-5 py-4 bg-card border-b border-border">
         <View className="flex-row items-center justify-between mb-2">
-          <Text className="text-2xl font-bold text-foreground">
-            Visitor History
-          </Text>
+          <Text className="text-2xl font-bold text-foreground">Visitor History</Text>
           {pendingVisitors.length > 0 && (
             <View className="bg-accent px-3 py-1 rounded-full">
-              <Text className="text-accent-foreground text-sm font-medium">
-                {pendingVisitors.length} pending
-              </Text>
+              <Text className="text-accent-foreground text-sm font-medium">{pendingVisitors.length} pending</Text>
             </View>
           )}
         </View>
-        <Text className="text-sm text-muted-foreground">
-          Manage your visitor requests and history
-        </Text>
+        <Text className="text-sm text-muted-foreground">Manage your visitor requests and history</Text>
       </View>
       
       {pendingVisitors.length > 0 && (
@@ -334,16 +297,9 @@ export default function HomeScreen() {
 
       {error && (
         <View className="bg-destructive/10 mx-5 mt-4 p-4 rounded-xl border border-destructive/20">
-          <Text className="text-destructive text-sm font-medium">
-            {error}
-          </Text>
-          <TouchableOpacity 
-            className="mt-2"
-            onPress={() => fetchVisitors(1, true)}
-          >
-            <Text className="text-destructive text-sm underline">
-              Tap to retry
-            </Text>
+          <Text className="text-destructive text-sm font-medium">{error}</Text>
+          <TouchableOpacity className="mt-2" onPress={() => fetchVisitors(1, true)}>
+            <Text className="text-destructive text-sm underline">Tap to retry</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -355,35 +311,19 @@ export default function HomeScreen() {
         className="flex-1"
         contentContainerClassName="p-5 pb-24"
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            colors={['#3b82f6']}
-            tintColor="#3b82f6"
-          />
-        }
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={['#3b82f6']} tintColor="#3b82f6" />}
         onEndReached={loadMore}
         onEndReachedThreshold={0.1}
         ListFooterComponent={
           isLoading && currentPage > 1 ? (
-            <View className="py-4">
-              <ActivityIndicator size="small" color="#3b82f6" />
-            </View>
+            <View className="py-4"><ActivityIndicator size="small" color="#3b82f6" /></View>
           ) : hasMoreData && visitors.length > 0 ? (
-            <TouchableOpacity 
-              className="bg-primary p-4 rounded-xl items-center mt-4 shadow-sm"
-              onPress={loadMore}
-            >
-              <Text className="text-primary-foreground text-base font-semibold">
-                Load More
-              </Text>
+            <TouchableOpacity className="bg-primary p-4 rounded-xl items-center mt-4 shadow-sm" onPress={loadMore}>
+              <Text className="text-primary-foreground text-base font-semibold">Load More</Text>
             </TouchableOpacity>
           ) : visitors.length > 0 ? (
             <View className="items-center mt-8 pb-4">
-              <Text className="text-muted-foreground text-sm">
-                You've reached the end
-              </Text>
+              <Text className="text-muted-foreground text-sm">You've reached the end</Text>
             </View>
           ) : null
         }
@@ -391,19 +331,13 @@ export default function HomeScreen() {
           isLoading ? (
             <View className="items-center justify-center py-20">
               <ActivityIndicator size="large" color="#3b82f6" />
-              <Text className="text-muted-foreground text-base mt-4">
-                Loading visitors...
-              </Text>
+              <Text className="text-muted-foreground text-base mt-4">Loading visitors...</Text>
             </View>
           ) : (
             <View className="items-center justify-center py-20">
               <Ionicons name="people-outline" size={64} color="#e5e5e6" />
-              <Text className="text-muted-foreground text-lg font-medium mt-4">
-                No visitors yet
-              </Text>
-              <Text className="text-muted text-sm mt-1">
-                Visitor history will appear here
-              </Text>
+              <Text className="text-muted-foreground text-lg font-medium mt-4">No visitors yet</Text>
+              <Text className="text-muted text-sm mt-1">Visitor history will appear here</Text>
             </View>
           )
         }

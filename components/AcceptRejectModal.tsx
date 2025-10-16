@@ -80,14 +80,15 @@ export default function AcceptRejectModal({
   };
 
   const handleApiCall = async (action: 'accept' | 'reject') => {
-    if (!visitorData?.id || !user?.access_token) {
-      Alert.alert('Error', 'Missing visitor ID or authentication token');
+    if (!visitorData?.id) {
+      Alert.alert('Error', 'No visitor data');
       return;
     }
-
+  
     setIsProcessing(true);
-
+  
     try {
+      // CLOUD API (KEEP AS IS)
       const endpoint = action === 'accept' 
         ? `${API_BASE_URL}/api/visits/approve/${visitorData.id}`
         : `${API_BASE_URL}/api/visits/deny/${visitorData.id}`;
@@ -96,41 +97,28 @@ export default function AcceptRejectModal({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.access_token}`,
+          'Authorization': `Bearer ${user?.access_token || ''}`,
         },
       });
-
-      const data = await response.json();
-
-      if (response.ok && data.status === 'success') {
-        // Determine the status based on API response
-        const newStatus = data.visit.status === 'granted' || data.visit.status === 'approved' ? 'accepted' : 'rejected';
+  
+      if (response.ok) {
+        // LAPTOP API - SEND 1 OR 0
+        const lockValue = action === 'accept' ? 1 : 0;
+        console.log(`📱 Sending to laptop: ${lockValue}`);
         
-        // Call the callback to update parent component
-        if (onStatusUpdate) {
-          onStatusUpdate(visitorData.id, newStatus);
-        }
-
-        Alert.alert(
-          'Success', 
-          `Visitor ${action === 'accept' ? 'approved' : 'denied'} successfully`,
-          [{ 
-            text: 'OK', 
-            onPress: () => {
-              handleClose();
-            }
-          }]
-        );
-      } else {
-        throw new Error(data.message || data.detail || 'Failed to update status');
+        await fetch(`https://iot-lock-api.onrender.com/lock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: lockValue })
+        });
+  
+        if (onStatusUpdate) onStatusUpdate(visitorData.id, action === 'accept' ? 'accepted' : 'rejected');
+        
+        Alert.alert('Success', `Visitor ${action === 'accept' ? 'approved' : 'denied'}!`);
       }
     } catch (error) {
-      console.error(`Error ${action}ing visitor:`, error);
-      Alert.alert(
-        'Error', 
-        `Failed to ${action} visitor: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        [{ text: 'OK' }]
-      );
+      console.log('🚨 ERROR:', error);
+      Alert.alert('Error', `Failed: message}`);
     } finally {
       setIsProcessing(false);
     }
