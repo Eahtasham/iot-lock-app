@@ -102,7 +102,7 @@ export default function LoginScreen() {
 
             {/* Login Button */}
             <TouchableOpacity
-              className={`rounded-lg py-4 ${
+              className={`rounded-lg py-4 mt-4 ${
                 isLoading ? 'bg-blue-300' : 'bg-blue-600'
               }`}
               onPress={handleLogin}

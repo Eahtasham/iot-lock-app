@@ -1,14 +1,14 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useUser } from '../../hooks/useUser'; // Adjust path as needed
 
@@ -18,7 +18,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const { register } = useUser();
   const router = useRouter();
 
@@ -40,10 +40,10 @@ export default function RegisterScreen() {
     }
 
     setIsLoading(true);
-    
+
     try {
       const success = await register(name, email, password);
-      
+
       if (success) {
         Alert.alert(
           'Success',
@@ -154,9 +154,8 @@ export default function RegisterScreen() {
 
             {/* Register Button */}
             <TouchableOpacity
-              className={`rounded-lg py-4 ${
-                isLoading ? 'bg-blue-300' : 'bg-blue-600'
-              }`}
+              className={`rounded-lg py-4 mt-4 ${isLoading ? 'bg-blue-300' : 'bg-blue-600'
+                }`}
               onPress={handleRegister}
               disabled={isLoading}
             >

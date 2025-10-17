@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -23,7 +24,7 @@ interface ProfileOption {
 const API_BASE_URL = 'https://iot-lock-backend.onrender.com';
 
 export default function ProfileScreen() {
-  const { user } = useUser();
+  const { user, logout } = useUser();
   const [modalVisible, setModalVisible] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -64,7 +65,7 @@ export default function ProfileScreen() {
 
       if (response.ok) {
         Alert.alert(
-          'Success', 
+          'Success',
           'Password changed successfully',
           [
             {
@@ -94,9 +95,39 @@ export default function ProfileScreen() {
 
   const handleAboutUs = () => {
     Alert.alert(
-      'About Us', 
+      'About Us',
       'Smart Door Security System\nVersion 1.0.0\n\nSecure your home with advanced IoT technology.',
       [{ text: 'OK' }]
+    );
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              await logout();
+              // Navigate to login screen
+              router.replace('/(auth)/login');
+            } catch (error) {
+              console.error('Logout error:', error);
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -119,25 +150,49 @@ export default function ProfileScreen() {
       icon: 'people-outline',
       onPress: handleAboutUs,
     },
+    {
+      id: '5',
+      title: 'Logout',
+      icon: 'log-out-outline',
+      onPress: handleLogout,
+    },
   ];
 
-  const renderProfileOption = (option: ProfileOption) => (
-    <TouchableOpacity
-      key={option.id}
-      className="flex-row items-center justify-between px-6 py-5 border-b border-gray-50 active:bg-gray-50"
-      onPress={option.onPress}
-    >
-      <View className="flex-row items-center flex-1">
-        <View className="w-10 h-10 rounded-full bg-blue-50 items-center justify-center mr-4">
-          <Ionicons name={option.icon as any} size={20} style={{ color: 'var(--primary)' }} />
+  const renderProfileOption = (option: ProfileOption) => {
+    const isLogout = option.id === '5';
+
+    return (
+      <TouchableOpacity
+        key={option.id}
+        className={`flex-row items-center justify-between px-6 py-5 border-b border-gray-50 active:bg-gray-50 ${isLogout ? 'border-b-0' : ''
+          }`}
+        onPress={option.onPress}
+        disabled={isLoading && isLogout}
+        style={{ opacity: (isLoading && isLogout) ? 0.6 : 1 }}
+      >
+        <View className="flex-row items-center flex-1">
+          <View className={`w-10 h-10 rounded-full items-center justify-center mr-4 ${isLogout ? 'bg-red-50' : 'bg-blue-50'
+            }`}>
+            <Ionicons
+              name={option.icon as any}
+              size={20}
+              style={{ color: isLogout ? '#EF4444' : 'var(--primary)' }}
+            />
+          </View>
+          <Text
+            className="text-base font-medium"
+            style={{ color: isLogout ? '#EF4444' : 'var(--secondary)' }}
+          >
+            {option.title}
+          </Text>
+          {isLoading && isLogout && (
+            <ActivityIndicator size="small" color="#EF4444" style={{ marginLeft: 8 }} />
+          )}
         </View>
-        <Text className="text-base font-medium" style={{ color: 'var(--secondary)' }}>
-          {option.title}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-    </TouchableOpacity>
-  );
+        {!isLogout && <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />}
+      </TouchableOpacity>
+    );
+  };
 
   const closeModal = () => {
     setModalVisible(false);
@@ -160,7 +215,7 @@ export default function ProfileScreen() {
         {/* User Info Card */}
         <View className="mx-6 mt-6 mb-4">
           <View className="bg-white rounded-2xl p-8 items-center shadow-sm border border-gray-100">
-            <View 
+            <View
               className="w-24 h-24 rounded-full items-center justify-center mb-4"
               style={{ backgroundColor: 'var(--primary)' + '20' }}
             >
@@ -180,9 +235,16 @@ export default function ProfileScreen() {
         </View>
 
         {/* Profile Options */}
+        <View className="mx-6 mb-4">
+          <View className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+            {profileOptions.filter(option => option.id !== '5').map(renderProfileOption)}
+          </View>
+        </View>
+
+        {/* Logout Section */}
         <View className="mx-6 mb-6">
           <View className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
-            {profileOptions.map(renderProfileOption)}
+            {profileOptions.filter(option => option.id === '5').map(renderProfileOption)}
           </View>
         </View>
       </ScrollView>
@@ -205,7 +267,7 @@ export default function ProfileScreen() {
                 <Ionicons name="close" size={24} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            
+
             {/* Old Password Input */}
             <View className="mb-4">
               <Text className="text-sm font-medium mb-2" style={{ color: 'var(--secondary)' }}>
@@ -221,15 +283,15 @@ export default function ProfileScreen() {
                   placeholderTextColor="#9CA3AF"
                 />
                 <TouchableOpacity onPress={() => setShowOldPassword(!showOldPassword)}>
-                  <Ionicons 
-                    name={showOldPassword ? "eye-off" : "eye"} 
-                    size={20} 
-                    color="#9CA3AF" 
+                  <Ionicons
+                    name={showOldPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#9CA3AF"
                   />
                 </TouchableOpacity>
               </View>
             </View>
-            
+
             {/* New Password Input */}
             <View className="mb-6">
               <Text className="text-sm font-medium mb-2" style={{ color: 'var(--secondary)' }}>
@@ -245,22 +307,21 @@ export default function ProfileScreen() {
                   placeholderTextColor="#9CA3AF"
                 />
                 <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)}>
-                  <Ionicons 
-                    name={showNewPassword ? "eye-off" : "eye"} 
-                    size={20} 
-                    color="#9CA3AF" 
+                  <Ionicons
+                    name={showNewPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#9CA3AF"
                   />
                 </TouchableOpacity>
               </View>
             </View>
-            
+
             {/* Buttons */}
             <TouchableOpacity
               onPress={handleSubmit}
               disabled={isLoading}
-              className={`p-4 rounded-xl mb-3 items-center justify-center ${
-                isLoading ? 'bg-gray-400' : 'bg-primary'
-              }`}
+              className={`p-4 rounded-xl mb-3 items-center justify-center ${isLoading ? 'bg-gray-400' : 'bg-primary'
+                }`}
               style={{ opacity: isLoading ? 0.7 : 1 }}
             >
               {isLoading ? (
@@ -272,7 +333,7 @@ export default function ProfileScreen() {
                 <Text className="text-white font-semibold text-base">Change Password</Text>
               )}
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               onPress={closeModal}
               disabled={isLoading}
