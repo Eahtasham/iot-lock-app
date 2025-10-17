@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import {
-    Alert,
-    Button,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Button,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useUser } from '../hooks/useUser';
 import NotificationService from '../services/notificationService';

@@ -77,19 +77,20 @@ export default function HomeScreen() {
 
       if (response.ok) {
         const transformedData: Visitor[] = data.visits?.map((visit: any) => {
-          // Split concatenated URLs using =@#*#@=
-          const allPhotos = visit.profile_image_url
+          const allPhotos = visit.image_url
+            ? [visit.image_url]
+            : visit.profile_image_url
             ? visit.profile_image_url.split('=@#*#@=')
-            : [visit.image_url || 'https://i.pravatar.cc/150?img=1'];
-
+            : ['https://i.pravatar.cc/150?img=1'];
+        
           return {
             id: visit.id.toString(),
             name: visit.visitor_name || 'Unknown Visitor',
-            photo: allPhotos[0], // first image for card
-            photos: allPhotos, // all images for modal
+            photo: allPhotos[0], // first image for card (visit capture)
+            photos: allPhotos,   // all images for modal
             date: visit.timestamp ? new Date(visit.timestamp).toLocaleDateString() : new Date().toLocaleDateString(),
-            time: visit.timestamp ? new Date(visit.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-            status: visit.status === 'granted' || visit.status === 'approved' ? 'accepted' : 
+            time: visit.timestamp ? new Date(visit.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: visit.status === 'granted' || visit.status === 'approved' ? 'accepted' :
                     visit.status === 'rejected' || visit.status === 'denied' ? 'rejected' : 'pending',
             visitor_id: visit.visitor_id,
             owner_id: visit.owner_id,
