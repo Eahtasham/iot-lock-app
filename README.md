@@ -1,6 +1,6 @@
 # IoT Lock App
 
-A React Native app for managing smart door lock visitors with real-time photo capture and accept/reject functionality.
+A React Native app for managing smart door lock visitors with real-time photo capture and accept/reject functionality..
 
 ## Features
 
